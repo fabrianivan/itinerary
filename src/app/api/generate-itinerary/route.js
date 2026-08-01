@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const API_KEY = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
+// Model specified in Gemma Hackathon guide: publishers/google/models/gemma-4-26b-a4b-it-maas or gemma-4-26b-a4b-it
 const MODEL_NAME = process.env.GEMMA_MODEL || 'gemma-4-26b-a4b-it';
 
 const SYSTEM_PROMPT = `Kamu adalah "itinerary.ai", asisten cerdas pembuat rencana perjalanan wisata dan kuliner lokal untuk SELURUH WILAYAH INDONESIA dan DUNIA.
@@ -14,7 +15,7 @@ PRINSIP & ATURAN:
 3. BUDGET REALISTIS: Total estimasi biaya (tiket + kuliner + oleh-oleh + estimasi transport) HARUS mematuhi budget pengguna jika disebutkan.
 4. KULINER & UMKM LOKAL: Selalu sertakan minimal 1 destinasi UMKM / kuliner lokal khas daerah tersebut.
 5. URUTAN RUTE EFEKTIF: Susun urutan tempat berdasarkan kedekatan geografis (jarak minimal) dan logika waktu (pagi -> siang -> sore -> malam).
-6. DOKUMEN HARUS FORMAT JSON VALID KETAT tanpa markdown wrapper / backticks berlebihan jika memungkinkan, namun jika menghasilkan JSON pastikan bisa di-parse JSON.parse().
+6. DOKUMEN HARUS FORMAT JSON VALID KETAT.
 
 SCHEMA JSON OUTPUT (WAJIB SESUAI FORMAT INI):
 {
@@ -73,9 +74,10 @@ export async function POST(request) {
     const apiKey = API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 
     if (apiKey) {
-      // Try Gemma 4 API via Google AI Studio REST endpoint
+      // Try Gemma 4 Model Garden / AI Studio API
+      const endpointModel = MODEL_NAME.includes('/') ? MODEL_NAME : `models/${MODEL_NAME}`;
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/${endpointModel}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -110,16 +112,16 @@ export async function POST(request) {
               return NextResponse.json(parsed);
             }
           } catch (e) {
-            console.error('Failed to parse AI JSON response:', e, candidateText);
+            console.error('Failed to parse Gemma 4 AI JSON response:', e, candidateText);
           }
         }
       } else {
         const errText = await response.text();
-        console.warn('Gemma 4 API call failed:', response.status, errText);
+        console.warn('Gemma 4 API call warning:', response.status, errText);
       }
     }
 
-    // Fallback dynamic generator for testing without API Key or when API limits apply
+    // Fallback dynamic generator for testing without API Key or when API quota is reached
     const dynamicResult = generateDynamicItinerary(prompt.trim());
     return NextResponse.json(dynamicResult);
 
@@ -132,7 +134,7 @@ export async function POST(request) {
   }
 }
 
-// Smart dynamic generator that detects requested location and creates rich real itineraries for any city in Indonesia
+// Smart dynamic generator supporting universal locations in Indonesia
 function generateDynamicItinerary(prompt) {
   const p = prompt.toLowerCase();
   
@@ -153,16 +155,11 @@ function generateDynamicItinerary(prompt) {
     else durationHours = num;
   }
 
-  // Detect City / Region
   let city = 'Yogyakarta';
-  let centerLat = -7.7956;
-  let centerLng = 110.3695;
   let sampleStops = [];
 
   if (p.includes('bali') || p.includes('kuta') || p.includes('ubud') || p.includes('denpasar') || p.includes('canggu')) {
     city = 'Bali';
-    centerLat = -8.5069;
-    centerLng = 115.2625;
     sampleStops = [
       { name: 'Tegallalang Rice Terrace', cat: 'wisata_alam', cost: 25000, dur: 90, lat: -8.4312, lng: 115.2792, desc: 'Pemandangan terasering sawah hijau yang memukau di Ubud.', tips: 'Gunakan pakaian terang untuk foto terbaik di ayunan.' },
       { name: 'Warung Babi Guling Ibu Oka', cat: 'kuliner', cost: 55000, dur: 45, lat: -8.5069, lng: 115.2625, desc: 'Kuliner khas Bali legendaris dengan kulit renyah dan bumbu genep.', tips: 'Datang sebelum jam makan siang agar tidak kehabisan.' },
@@ -171,8 +168,6 @@ function generateDynamicItinerary(prompt) {
     ];
   } else if (p.includes('bandung') || p.includes('lembang') || p.includes('dago')) {
     city = 'Bandung';
-    centerLat = -6.9175;
-    centerLng = 107.6191;
     sampleStops = [
       { name: 'Kawah Putih Ciwidey', cat: 'wisata_alam', cost: 40000, dur: 90, lat: -7.1662, lng: 107.4021, desc: 'Danau kawah vulkanik berwarna putih kehijauan yang sangat fotogenik.', tips: 'Gunakan masker karena aroma belerang cukup kuat.' },
       { name: 'Warung Nasi Ibu Imas', cat: 'kuliner', cost: 35000, dur: 45, lat: -6.9242, lng: 107.6045, desc: 'Kuliner Sunda legendaris dengan karedok dan sambal dadak pedas mantap.', tips: 'Sambal dadak dan ayam goreng basah adalah kombinasi wajib.' },
@@ -181,38 +176,30 @@ function generateDynamicItinerary(prompt) {
     ];
   } else if (p.includes('malang') || p.includes('batu') || p.includes('bromo')) {
     city = 'Malang & Batu';
-    centerLat = -7.9666;
-    centerLng = 112.6326;
     sampleStops = [
       { name: 'Museum Angkut Batu', cat: 'wisata_sejarah', cost: 110000, dur: 120, lat: -7.8785, lng: 112.5195, desc: 'Museum transportasi zona Eropa dan Amerika terpopuler.', tips: 'Siapkan baterai kamera penuh karena banyak spot foto.' },
       { name: 'Bakso President Malang', cat: 'kuliner', cost: 30000, dur: 45, lat: -7.9642, lng: 112.6364, desc: 'Bakso legendaris di pinggir rel kereta api sejak tahun 1977.', tips: 'Minta bakso bakar bumbu kecap manis pedas.' },
-      { name: 'Toko Oen Malang', cat: 'kuliner', cost: 40000, dur: 45, lat: -7.9825, lng: 112.6308, desc: 'Resto vintage bergaya kolonial Belada dengan es krim buatan sendiri.', tips: 'Coba es krim Tutti Frutti khas sejak 1930.' }
+      { name: 'Toko Oen Malang', cat: 'kuliner', cost: 40000, dur: 45, lat: -7.9825, lng: 112.6308, desc: 'Resto vintage bergaya kolonial Belanda dengan es krim buatan sendiri.', tips: 'Coba es krim Tutti Frutti khas sejak 1930.' }
     ];
-  } else if (p.includes('jakarta') || p.includes('monas') || p.includes('PIK')) {
+  } else if (p.includes('jakarta') || p.includes('monas') || p.includes('pik')) {
     city = 'Jakarta';
-    centerLat = -6.2088;
-    centerLng = 106.8456;
     sampleStops = [
       { name: 'Monumen Nasional (Monas)', cat: 'wisata_sejarah', cost: 15000, dur: 90, lat: -6.1754, lng: 106.8272, desc: 'Ikon ibu kota dengan museum sejarah nasional dan pelataran puncak.', tips: 'Datang pagi hari untuk menghindari antrean lift ke puncak.' },
       { name: 'Soto Betawi H. Husein', cat: 'kuliner', cost: 45000, dur: 45, lat: -6.2089, lng: 106.8456, desc: 'Soto Betawi kuah santan susu gurih resep otentik Manggarai.', tips: 'Pesan campur daging dan paru goreng garing.' },
       { name: 'Kota Tua & Museum Fatahillah', cat: 'wisata_sejarah', cost: 10000, dur: 90, lat: -6.1352, lng: 106.8133, desc: 'Kawasan peninggalan kolonial dengan sepeda ontel warna-warni.', tips: 'Sewa sepeda ontel dan topi kompeni untuk keliling alun-alun.' }
     ];
   } else {
-    // Default / General Yogyakarta & Central Java
     city = p.includes('brebes') ? 'Brebes' : 'Yogyakarta';
-    centerLat = -7.7956;
-    centerLng = 110.3695;
     sampleStops = [
-      { name: 'Candi Prambanan', cat: 'wisata_sejarah', cost: 50000, dur: 90, lat: -7.7520, lng: 110.4914, desc: 'Kompleks candi Hindu terbesar di Indonesia beraksitektur megah.', tips: 'Sewa pemandu lokal untuk mendapatkan cerita sejarah yang mendalam.' },
+      { name: 'Candi Prambanan', cat: 'wisata_sejarah', cost: 50000, dur: 90, lat: -7.7520, lng: 110.4914, desc: 'Kompleks candi Hindu terbesar di Indonesia beraksitektur megah.', tips: 'Sewa pemandu lokal untuk cerita sejarah yang mendalam.' },
       { name: 'Gudeg Yu Djum Wijilan', cat: 'kuliner', cost: 35000, dur: 45, lat: -7.8045, lng: 110.3645, desc: 'Gudeg Jogja otentik dengan krecek pedas dan telur bacem gurih.', tips: 'Beli kemasan besek atau kaleng jika ingin dijadikan oleh-oleh.' },
-      { name: 'Jalan Malioboro & Pasar Beringharjo', cat: 'oleh_oleh', cost: 30000, dur: 60, lat: -7.7928, lng: 110.3658, desc: 'Pusat belanja souvenir, batik, dan pernak-pemik khas Yogyakarta.', tips: 'Gunakan kemampuan menawar dengan ramah saat membeli batik.' }
+      { name: 'Jalan Malioboro & Pasar Beringharjo', cat: 'oleh_oleh', cost: 30000, dur: 60, lat: -7.7928, lng: 110.3658, desc: 'Pusat belanja souvenir, batik, dan pernak-pemik khas Yogyakarta.', tips: 'Tawar harga dengan ramah saat membeli batik.' }
     ];
   }
 
-  // Calculate schedule & times
   let currentMin = 8 * 60;
   const stops = sampleStops.map((item, idx) => {
-    if (idx > 0) currentMin += 20; // 20m travel time
+    if (idx > 0) currentMin += 20;
     const h = Math.floor(currentMin / 60);
     const m = currentMin % 60;
     const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
