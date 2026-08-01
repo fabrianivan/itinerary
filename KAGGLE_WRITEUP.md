@@ -22,17 +22,19 @@ Planning authentic travel and local culinary trips across Indonesia is often fra
 ---
 
 ## 💡 3. Proposed Solution (Solusi & Inovasi)
-`itinerary.ai` is a full-stack, AI-driven travel assistant built specifically to convert natural language queries into precision-optimized, actionable travel itineraries.
+`itinerary.ai` is a full-stack, AI-driven travel assistant built specifically to convert natural language queries into precision-optimized, multi-day actionable travel itineraries.
 
 > [!NOTE]
-> **Example User Query**: *"Yogyakarta 2 hari, budget Rp500rb, wisata candi & kuliner legendaris"*
+> **Example User Query**: *"Trip To New York City 3 days"* or *"Yogyakarta 2 hari, budget Rp500rb, wisata candi & kuliner legendaris"*
 
 ### Core Features & Value Propositions:
 - 🗣️ **Natural Language Input Engine**: Accepts multi-constraint, casual prompts specifying destination, duration, budget, and travel preferences.
-- 📍 **Universal Geographic Scope**: Seamlessly handles cities and tourist destinations across Indonesia (e.g., Yogyakarta, Bali, Bandung, Malang, Jakarta, Brebes) and globally.
-- 🗺️ **Interactive Dual-Panel Interface**: Features a dynamic Leaflet.js interactive map synced side-by-side with step-by-step itinerary cards.
+- 📅 **Multi-Day Accordion Layout (Day 1, Day 2...)**: Organizes routes by day with expandable accordions and day-specific color themes (Blue, Red, Purple, Emerald).
+- 🌅 **Time-of-Day Categorization**: Groups stops into **Morning**, **Afternoon**, and **Evening** slots for logical trip execution.
+- ➕ **Interactive "+ Add Stop" Feature**: Allows users to add custom places dynamically into any day and time slot with real-time budget recalculation.
+- 🔍 **"Explore" Regional Recommendations Tab**: Instant discovery tab showcasing authentic local culinary spots and UMKM attractions ready to be added to the route.
+- 🗺️ **Color-Coded Interactive Leaflet Map**: Numbered map markers and route polylines color-matched to each day.
 - 💰 **Automated Budget Allocation**: Dynamically breaks down expenses across tickets, culinary, transport, and souvenirs, calculating remaining funds.
-- 🍲 **Local UMKM & Culinary First**: Prioritizes authentic regional food spots and local micro-businesses in every generated route.
 - ⚡ **High-Availability Graceful Fallback**: Integrates an offline dynamic route generator to ensure 100% service uptime during high API traffic or quota limits.
 
 ---
@@ -48,42 +50,36 @@ Gemma 4 serves as the **central intelligence and reasoning engine** of `itinerar
 ```json
 {
   "itinerary": {
-    "title": "Eksplorasi Pesona & Cita Rasa Yogyakarta",
-    "region": "Yogyakarta",
+    "title": "Trip To New York City",
+    "region": "New York City",
+    "dates": "10/17/26 - 10/20/26",
+    "total_days": 2,
     "total_duration_minutes": 275,
-    "total_estimated_cost": 150000,
+    "total_estimated_cost": 800000,
     "stops": [
       {
         "order": 1,
-        "place_id": "jogja_candi_prambanan",
-        "name": "Candi Prambanan",
-        "category": "wisata_sejarah",
-        "arrival_time": "08:00",
-        "duration_minutes": 90,
-        "estimated_cost": 50000,
-        "description": "Kompleks candi Hindu terbesar di Indonesia beraksitektur megah.",
-        "tips": "Sewa pemandu lokal untuk cerita sejarah yang mendalam.",
-        "location": { "lat": -7.7520, "lng": 110.4914 }
-      }
-    ],
-    "travel_segments": [
-      {
-        "from_order": 1,
-        "to_order": 2,
-        "distance_km": 4.5,
-        "travel_minutes": 20,
-        "transport": "motor/mobil"
+        "day_number": 1,
+        "time_of_day": "Morning",
+        "name": "Breakfast at Breads Bakery (Union Square)",
+        "category": "kuliner",
+        "arrival_time": "08:30",
+        "duration_minutes": 45,
+        "estimated_cost": 150000,
+        "description": "Famous bakery known for chocolate babka and fresh pastries.",
+        "tips": "Try the legendary chocolate babka.",
+        "location": { "lat": 40.7367, "lng": -73.9904 }
       }
     ],
     "budget_breakdown": {
-      "tiket_wisata": 50000,
-      "kuliner": 35000,
-      "transportasi": 15000,
-      "oleh_oleh": 50000,
-      "total": 150000,
-      "sisa_budget": 350000
+      "tiket_wisata": 250000,
+      "kuliner": 450000,
+      "transportasi": 30000,
+      "oleh_oleh": 70000,
+      "total": 800000,
+      "sisa_budget": 200000
     },
-    "ai_notes": "Itinerary ini dirancang khusus untuk kawasan Yogyakarta sesuai preferensi kamu."
+    "ai_notes": "Itinerary disusun per hari dengan waktu Morning, Afternoon, & Evening."
   }
 }
 ```
@@ -93,8 +89,8 @@ Gemma 4 serves as the **central intelligence and reasoning engine** of `itinerar
 ## ⚡ 5. Antigravity Developer Workflow & Impact
 Building a complete, production-grade web application within the **3-hour hackathon timeframe** was driven by the **Antigravity AI Agentic IDE**:
 
-1. **End-to-End Pair Programming**: Antigravity generated the foundation using Next.js 16 (App Router), React 19, Leaflet integration, and custom Dark Glassmorphism CSS.
-2. **Automated Prompt & Schema Iteration**: Antigravity iteratively tuned System Prompts for Gemma 4, enforcing JSON structured mode and fallback handlers.
+1. **End-to-End Pair Programming**: Antigravity generated the foundation using Next.js 16 (App Router), React 19, Leaflet integration, and custom Dark Glassmorphism CSS matching reference UI layouts.
+2. **Automated Prompt & Schema Iteration**: Antigravity iteratively tuned System Prompts for Gemma 4, enforcing JSON structured mode, multi-day grouping, and fallback handlers.
 3. **Containerization & Cloud Native Deployment**: Antigravity configured multi-stage Docker builds (`node:20-alpine`) and automated zero-downtime deployment to **Google Cloud Run** in `asia-southeast2`.
 
 ---
@@ -132,9 +128,9 @@ flowchart TD
 
 | Judging Criteria | Implementation & Achievement |
 |---|---|
-| 🤖 **Gemma Integration** | Gemma 4 is the core intelligence processing spatial constraints, JSON output generation, and personalized travel tips. |
+| 🤖 **Gemma Integration** | Gemma 4 is the core intelligence processing multi-day spatial constraints, time slots, and JSON output generation. |
 | 💡 **Innovation & Impact** | Directly supports local UMKM food stalls and tourism across Indonesia with instant natural language customization. |
-| 🎨 **Functionality & Usability** | Synchronized dual-panel design with interactive Leaflet map markers, scroll syncing, budget charts, and share links. |
+| 🎨 **Functionality & Usability** | Multi-day expandable accordions, Morning/Afternoon/Evening grouping, "+ Add Stop" feature, Explore tab, and color-coded map markers. |
 | ⚡ **Agentic Developer Workflow** | Designed, built, containerized, and deployed using Antigravity AI pair programming in under 3 hours. |
 | ☁️ **Google Cloud Architecture** | Fully containerized Docker image running on serverless Cloud Run in `asia-southeast2`. |
 | 📝 **Submission Quality** | High-availability live demo URL, clean open-source codebase, and detailed documentation. |
