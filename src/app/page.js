@@ -17,13 +17,23 @@ export default function Home() {
   const scrollRef = useRef(null);
 
   const parseBudget = (prompt) => {
-    const lower = prompt.toLowerCase();
-    const match = lower.match(/(?:rp|budget|biaya)\s*(\d+[\d\.]*)/i);
+    if (!prompt) return 300000;
+    const p = prompt.toLowerCase();
+    const match = p.match(/(?:rp|budget|biaya)?\s*(\d+(?:[\.,]\d+)?)\s*(rb|ribu|k|jt|juta)?/i);
     if (match) {
-      let raw = match[1].replace(/\./g, '');
-      let val = parseInt(raw, 10);
-      if (val < 1000) val *= 1000;
-      if (val > 100) return val;
+      let numStr = match[1].replace(/\./g, '').replace(',', '.');
+      let num = parseFloat(numStr);
+      if (!isNaN(num)) {
+        const unit = (match[2] || '').toLowerCase();
+        if (unit === 'rb' || unit === 'ribu' || unit === 'k') {
+          num *= 1000;
+        } else if (unit === 'jt' || unit === 'juta') {
+          num *= 1000000;
+        } else if (num < 1000) {
+          num *= 1000;
+        }
+        if (num >= 10000) return num;
+      }
     }
     return 300000;
   };

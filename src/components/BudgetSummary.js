@@ -5,8 +5,19 @@ export default function BudgetSummary({ budget, userBudget }) {
 
   const formatCost = (cost) => new Intl.NumberFormat('id-ID').format(cost);
 
-  const percentage = userBudget > 0 ? Math.round((budget.total / userBudget) * 100) : 0;
-  const remaining = userBudget - budget.total;
+  const computedTotal = [
+    Number(budget.tiket_wisata) || 0,
+    Number(budget.kuliner) || 0,
+    Number(budget.transportasi) || 0,
+    Number(budget.oleh_oleh) || 0,
+  ].reduce((sum, value) => sum + value, 0);
+
+  const totalCost = Number.isFinite(Number(budget.total)) && Number(budget.total) > 0
+    ? Number(budget.total)
+    : computedTotal;
+
+  const percentage = userBudget > 0 ? Math.round((totalCost / userBudget) * 100) : 0;
+  const remaining = userBudget - totalCost;
 
   const getProgressClass = () => {
     if (percentage > 90) return 'over';
@@ -46,7 +57,7 @@ export default function BudgetSummary({ budget, userBudget }) {
 
       <div className="budget-row total">
         <span className="label">Total</span>
-        <span className="value">Rp{formatCost(budget.total)}</span>
+        <span className="value">Rp{formatCost(totalCost)}</span>
       </div>
 
       {userBudget > 0 && (

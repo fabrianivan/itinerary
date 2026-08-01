@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 const MAP_STYLES = {
-  dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  light: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 };
 
 // Default center of Indonesia
@@ -63,9 +63,9 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
         attributionControl: true,
       });
 
-      L.tileLayer(MAP_STYLES.dark, {
+      L.tileLayer(MAP_STYLES.light, {
         attribution: MAP_STYLES.attribution,
-        maxZoom: 18,
+        maxZoom: 19,
       }).addTo(map);
 
       mapInstanceRef.current = map;
@@ -125,9 +125,11 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
     const bounds = [];
 
     stops.forEach((stop, idx) => {
-      if (!stop.location || typeof stop.location.lat !== 'number' || typeof stop.location.lng !== 'number') return;
+      if (!stop.location) return;
+      const lat = parseFloat(stop.location.lat);
+      const lng = parseFloat(stop.location.lng);
+      if (isNaN(lat) || isNaN(lng)) return;
 
-      const { lat, lng } = stop.location;
       bounds.push([lat, lng]);
 
       const cat = getMarkerCategory(stop.category);
@@ -178,6 +180,12 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
     } else if (bounds.length === 1) {
       map.setView(bounds[0], 13);
     }
+
+    setTimeout(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    }, 200);
   }
 
   if (!isClient) {
