@@ -1,66 +1,182 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+
+import { useState, useRef, useCallback } from 'react';
+import PromptInput from '@/components/PromptInput';
+import ItineraryTimeline from '@/components/ItineraryTimeline';
+import BudgetSummary from '@/components/BudgetSummary';
+import LoadingSkeleton from '@/components/LoadingSkeleton';
+import MapView from '@/components/MapView';
 
 export default function Home() {
+  const [itinerary, setItinerary] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [activeIndex, setActiveIndex] = useState(null);
+  const [userBudget, setUserBudget] = useState(0);
+  const [hasSearched, setHasSearched] = useState(false);
+  const scrollRef = useRef(null);
+
+  const parseBudget = (prompt) => {
+    const lower = prompt.toLowerCase();
+    const match = lower.match(/(?:rp|budget|biaya)\s*(\d+[\d\.]*)/i);
+    if (match) {
+      let raw = match[1].replace(/\./g, '');
+      let val = parseInt(raw, 10);
+      if (val < 1000) val *= 1000;
+      if (val > 100) return val;
+    }
+    return 300000;
+  };
+
+  const handleSubmit = useCallback(async (prompt) => {
+    setIsLoading(true);
+    setError(null);
+    setItinerary(null);
+    setHasSearched(true);
+    setUserBudget(parseBudget(prompt));
+
+    try {
+      const res = await fetch('/api/generate-itinerary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Gagal membuat itinerary');
+      }
+
+      const data = await res.json();
+      if (!data.itinerary) {
+        throw new Error('Format itinerary tidak valid');
+      }
+      setItinerary(data.itinerary);
+
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = 0;
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const handleHover = useCallback((index) => {
+    setActiveIndex(index);
+  }, []);
+
+  const handleCardClick = useCallback((index) => {
+    setActiveIndex(index);
+  }, []);
+
+  const handleMarkerClick = useCallback((index) => {
+    setActiveIndex(index);
+    const card = document.getElementById(`itinerary-card-${index}`);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, []);
+
+  const handleRegenerate = useCallback(() => {
+    const input = document.getElementById('prompt-input');
+    if (input && input.value.trim()) {
+      handleSubmit(input.value.trim());
+    }
+  }, [handleSubmit]);
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="split-layout">
+      {/* Left Panel — Prompt + Itinerary */}
+      <div className="panel-left">
+        <PromptInput onSubmit={handleSubmit} isLoading={isLoading} />
+
+        <div className="panel-left-scroll" ref={scrollRef}>
+          {/* Loading State */}
+          {isLoading && <LoadingSkeleton />}
+
+          {/* Error State */}
+          {error && !isLoading && (
+            <div className="error-state" style={{ padding: '24px', textAlign: 'center' }}>
+              <div className="error-card" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '16px', padding: '24px' }}>
+                <h4 style={{ color: 'var(--danger)', marginBottom: '8px' }}>⚠️ Terjadi Kendala</h4>
+                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>{error}</p>
+                <button className="btn btn-primary" onClick={handleRegenerate} style={{ width: 'auto', margin: '0 auto', padding: '10px 24px' }}>
+                  🔄 Coba Lagi
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Itinerary Results */}
+          {itinerary && !isLoading && (
+            <>
+              <ItineraryTimeline
+                itinerary={itinerary}
+                activeIndex={activeIndex}
+                onHover={handleHover}
+                onClick={handleCardClick}
+              />
+
+              <BudgetSummary
+                budget={itinerary.budget_breakdown}
+                userBudget={userBudget}
+              />
+
+              {itinerary.ai_notes && (
+                <div className="card-tips" style={{ marginTop: '20px' }}>
+                  <span>💡</span>
+                  <span>{itinerary.ai_notes}</span>
+                </div>
+              )}
+
+              <div className="action-buttons">
+                <button className="btn btn-primary" onClick={handleRegenerate}>
+                  🔄 Buat Variasi Baru
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    if (navigator.share) {
+                      navigator.share({
+                        title: itinerary.title,
+                        text: `Rencana Perjalanan AI: ${itinerary.title}`,
+                        url: window.location.href,
+                      });
+                    } else {
+                      navigator.clipboard.writeText(window.location.href);
+                      alert('Link itinerary berhasil disalin!');
+                    }
+                  }}
+                >
+                  📤 Bagikan
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Welcome Hero State */}
+          {!hasSearched && !isLoading && (
+            <div className="welcome-state">
+              <div className="welcome-badge">✨ Powered by Gemma 4</div>
+              <h1 className="welcome-title">Jelajahi Indonesia dengan AI Personal</h1>
+              <p className="welcome-desc">
+                Cukup ketik destinasi kota, waktu, budget, dan impian wisatamu. AI akan merancang rute perjalanan & kuliner terbaik secara instan.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right Panel — Map */}
+      <div className="panel-right">
+        <MapView
+          stops={itinerary?.stops}
+          activeIndex={activeIndex}
+          onMarkerClick={handleMarkerClick}
         />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.js file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
