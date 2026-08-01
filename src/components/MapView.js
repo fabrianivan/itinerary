@@ -7,35 +7,16 @@ const MAP_STYLES = {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 };
 
-// Default center of Indonesia
 const INDONESIA_CENTER = [-2.5489, 118.0149];
 const DEFAULT_ZOOM = 5;
 
-const MARKER_COLORS = {
-  wisata: '#10b981',
-  kuliner: '#f59e0b',
-  'oleh-oleh': '#6366f1',
-  pantai: '#06b6d4',
-  kopi: '#d97706',
-  default: '#14b8a6',
-};
-
-function getMarkerCategory(category) {
-  if (!category) return 'default';
-  const cat = category.toLowerCase();
-  if (cat.includes('pantai') || cat.includes('air') || cat.includes('bahari')) return 'pantai';
-  if (cat.includes('kopi') || cat.includes('cafe')) return 'kopi';
-  if (cat.includes('wisata') || cat.includes('candi') || cat.includes('alam') || cat.includes('sejarah')) return 'wisata';
-  if (cat.includes('kuliner') || cat.includes('sate') || cat.includes('makan') || cat.includes('nasi') || cat.includes('bakso')) return 'kuliner';
-  if (cat.includes('oleh') || cat.includes('belanja') || cat.includes('umkm')) return 'oleh-oleh';
-  return 'default';
-}
+const DAY_FALLBACK_COLORS = ['#3b82f6', '#ef4444', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899'];
 
 export default function MapView({ stops, activeIndex, onMarkerClick }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
-  const polylineRef = useRef(null);
+  const polylinesRef = useRef([]);
   const [isClient, setIsClient] = useState(false);
   const leafletRef = useRef(null);
 
@@ -43,7 +24,6 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
     setIsClient(true);
   }, []);
 
-  // Initialize map
   useEffect(() => {
     if (!isClient || mapInstanceRef.current) return;
 
@@ -70,7 +50,6 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
 
       mapInstanceRef.current = map;
 
-      // If stops already exist, render them
       if (stops && stops.length > 0) {
         renderMarkers(L, map, stops);
       }
@@ -83,13 +62,11 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
     };
   }, [isClient]);
 
-  // Update markers when stops change
   useEffect(() => {
     if (!mapInstanceRef.current || !leafletRef.current || !stops) return;
     renderMarkers(leafletRef.current, mapInstanceRef.current, stops);
   }, [stops]);
 
-  // Handle active index highlight
   useEffect(() => {
     if (!markersRef.current.length) return;
 
@@ -109,13 +86,12 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
   }, [activeIndex]);
 
   function renderMarkers(L, map, stops) {
-    // Clear existing markers
+    // Clear existing markers & polylines
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
-    if (polylineRef.current) {
-      polylineRef.current.remove();
-      polylineRef.current = null;
-    }
+
+    polylinesRef.current.forEach((p) => p.remove());
+    polylinesRef.current = [];
 
     if (!stops || stops.length === 0) {
       map.setView(INDONESIA_CENTER, DEFAULT_ZOOM);
@@ -123,6 +99,7 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
     }
 
     const bounds = [];
+    const dayBoundsMap = new Map();
 
     stops.forEach((stop, idx) => {
       if (!stop.location) return;
@@ -132,14 +109,19 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
 
       bounds.push([lat, lng]);
 
-      const cat = getMarkerCategory(stop.category);
-      const color = MARKER_COLORS[cat] || MARKER_COLORS.default;
+      const dayNum = Number(stop.day_number) || 1;
+      const color = stop.day_color || DAY_FALLBACK_COLORS[(dayNum - 1) % DAY_FALLBACK_COLORS.length];
+
+      if (!dayBoundsMap.has(dayNum)) {
+        dayBoundsMap.set(dayNum, { color, points: [] });
+      }
+      dayBoundsMap.get(dayNum).points.push([lat, lng]);
 
       const icon = L.divIcon({
         className: 'marker-wrapper',
-        html: `<div class="custom-marker ${cat}" style="background:${color}"><span>${idx + 1}</span></div>`,
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
+        html: `<div class="custom-marker" style="background:${color}"><span>${idx + 1}</span></div>`,
+        iconSize: [34, 34],
+        iconAnchor: [17, 34],
         popupAnchor: [0, -36],
       });
 
@@ -149,9 +131,10 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
 
       marker.bindPopup(
         `<div class="popup-content">
-          <h4>${stop.name}</h4>
+          <h4 style="color:${color}; margin-bottom:4px;">Day ${dayNum} · #${idx + 1}</h4>
+          <h3 style="font-size:0.98rem; font-weight:700; margin-bottom:6px;">${stop.name}</h3>
           <p>💰 Rp${formatCost(stop.estimated_cost)}</p>
-          <p>⏱️ ${stop.duration_minutes || 45} menit</p>
+          <p>⏱️ ${stop.duration_minutes || 45} mnt</p>
         </div>`,
         { className: 'custom-popup' }
       );
@@ -163,16 +146,20 @@ export default function MapView({ stops, activeIndex, onMarkerClick }) {
       markersRef.current.push(marker);
     });
 
-    // Draw route polyline
-    if (bounds.length > 1) {
-      polylineRef.current = L.polyline(bounds, {
-        color: '#14b8a6',
-        weight: 4,
-        opacity: 0.8,
-        dashArray: '8, 8',
-        smoothFactor: 1,
-      }).addTo(map);
-    }
+    // Draw polylines per day
+    dayBoundsMap.forEach((dayData) => {
+      if (dayData.points.length > 1) {
+        const poly = L.polyline(dayData.points, {
+          color: dayData.color,
+          weight: 4,
+          opacity: 0.85,
+          dashArray: '6, 6',
+          smoothFactor: 1,
+        }).addTo(map);
+
+        polylinesRef.current.push(poly);
+      }
+    });
 
     // Fit bounds dynamically
     if (bounds.length > 1) {

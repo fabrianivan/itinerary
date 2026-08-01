@@ -6,6 +6,7 @@ import ItineraryTimeline from '@/components/ItineraryTimeline';
 import BudgetSummary from '@/components/BudgetSummary';
 import LoadingSkeleton from '@/components/LoadingSkeleton';
 import MapView from '@/components/MapView';
+import ExploreView from '@/components/ExploreView';
 
 export default function Home() {
   const [itinerary, setItinerary] = useState(null);
@@ -14,6 +15,7 @@ export default function Home() {
   const [activeIndex, setActiveIndex] = useState(null);
   const [userBudget, setUserBudget] = useState(0);
   const [hasSearched, setHasSearched] = useState(false);
+  const [activeTab, setActiveTab] = useState('itinerary');
   const scrollRef = useRef(null);
 
   const parseBudget = (prompt) => {
@@ -44,6 +46,7 @@ export default function Home() {
     setItinerary(null);
     setHasSearched(true);
     setUserBudget(parseBudget(prompt));
+    setActiveTab('itinerary');
 
     try {
       const res = await fetch('/api/generate-itinerary', {
@@ -96,6 +99,73 @@ export default function Home() {
     }
   }, [handleSubmit]);
 
+  const handleAddStop = useCallback((newStop) => {
+    setItinerary((prev) => {
+      if (!prev) return prev;
+
+      const updatedStops = [...(prev.stops || []), newStop];
+
+      // Re-categorize costs
+      let tiket = 0, kuliner = 0, oleh = 0;
+      updatedStops.forEach((stop) => {
+        const cost = Number(stop.estimated_cost) || 0;
+        const cat = String(stop.category || '').toLowerCase();
+        if (cat.includes('kuliner') || cat.includes('kopi')) kuliner += cost;
+        else if (cat.includes('oleh') || cat.includes('umkm')) oleh += cost;
+        else tiket += cost;
+      });
+
+      const transport = (prev.budget_breakdown?.transportasi || 15000) + 15000;
+      const total = tiket + kuliner + transport + oleh;
+
+      // Rebuild days
+      const DAY_COLORS = ['#3b82f6', '#ef4444', '#8b5cf6', '#10b981', '#f59e0b'];
+      const dayNum = newStop.day_number || 1;
+      newStop.day_color = DAY_COLORS[(dayNum - 1) % DAY_COLORS.length];
+
+      // Update days array
+      const nextDays = [...(prev.days || [])];
+      let dayObj = nextDays.find((d) => d.day_number === dayNum);
+
+      if (!dayObj) {
+        dayObj = {
+          day_number: dayNum,
+          day_title: `Day ${dayNum}`,
+          color: newStop.day_color,
+          sections: [
+            { time_of_day: 'Morning', title: 'Morning', stops: [] },
+            { time_of_day: 'Afternoon', title: 'Afternoon', stops: [] },
+            { time_of_day: 'Evening', title: 'Evening', stops: [] }
+          ]
+        };
+        nextDays.push(dayObj);
+      }
+
+      const sectionTime = newStop.time_of_day || 'Afternoon';
+      let sec = dayObj.sections.find((s) => s.time_of_day === sectionTime);
+      if (!sec) {
+        sec = { time_of_day: sectionTime, title: sectionTime, stops: [] };
+        dayObj.sections.push(sec);
+      }
+      sec.stops.push(newStop);
+
+      return {
+        ...prev,
+        stops: updatedStops,
+        days: nextDays,
+        total_estimated_cost: total,
+        budget_breakdown: {
+          tiket_wisata: tiket,
+          kuliner: kuliner,
+          transportasi: transport,
+          oleh_oleh: oleh,
+          total: total,
+          sisa_budget: Math.max(0, userBudget - total)
+        }
+      };
+    });
+  }, [userBudget]);
+
   return (
     <div className="split-layout">
       {/* Left Panel — Prompt + Itinerary */}
@@ -119,50 +189,77 @@ export default function Home() {
             </div>
           )}
 
-          {/* Itinerary Results */}
+          {/* Itinerary / Explore Results */}
           {itinerary && !isLoading && (
             <>
-              <ItineraryTimeline
-                itinerary={itinerary}
-                activeIndex={activeIndex}
-                onHover={handleHover}
-                onClick={handleCardClick}
-              />
+              {activeTab === 'itinerary' ? (
+                <>
+                  <ItineraryTimeline
+                    itinerary={itinerary}
+                    activeIndex={activeIndex}
+                    onHover={handleHover}
+                    onClick={handleCardClick}
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                    onAddStop={handleAddStop}
+                  />
 
-              <BudgetSummary
-                budget={itinerary.budget_breakdown}
-                userBudget={userBudget}
-              />
+                  <BudgetSummary
+                    budget={itinerary.budget_breakdown}
+                    userBudget={userBudget}
+                  />
 
-              {itinerary.ai_notes && (
-                <div className="card-tips" style={{ marginTop: '20px' }}>
-                  <span>💡</span>
-                  <span>{itinerary.ai_notes}</span>
-                </div>
+                  {itinerary.ai_notes && (
+                    <div className="card-tips" style={{ marginTop: '20px' }}>
+                      <span>💡</span>
+                      <span>{itinerary.ai_notes}</span>
+                    </div>
+                  )}
+
+                  <div className="action-buttons">
+                    <button className="btn btn-primary" onClick={handleRegenerate}>
+                      🔄 Buat Variasi Baru
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        if (navigator.share) {
+                          navigator.share({
+                            title: itinerary.title,
+                            text: `Rencana Perjalanan AI: ${itinerary.title}`,
+                            url: window.location.href,
+                          });
+                        } else {
+                          navigator.clipboard.writeText(window.location.href);
+                          alert('Link itinerary berhasil disalin!');
+                        }
+                      }}
+                    >
+                      📤 Bagikan
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '16px' }}>
+                    <div className="tab-switcher-container">
+                      <button
+                        className={`tab-btn ${activeTab === 'itinerary' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('itinerary')}
+                      >
+                        Itinerary
+                      </button>
+                      <button
+                        className={`tab-btn ${activeTab === 'explore' ? 'active' : ''}`}
+                        onClick={() => setActiveTab('explore')}
+                      >
+                        Explore
+                      </button>
+                    </div>
+                  </div>
+                  <ExploreView region={itinerary.region} onAddStop={handleAddStop} />
+                </>
               )}
-
-              <div className="action-buttons">
-                <button className="btn btn-primary" onClick={handleRegenerate}>
-                  🔄 Buat Variasi Baru
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    if (navigator.share) {
-                      navigator.share({
-                        title: itinerary.title,
-                        text: `Rencana Perjalanan AI: ${itinerary.title}`,
-                        url: window.location.href,
-                      });
-                    } else {
-                      navigator.clipboard.writeText(window.location.href);
-                      alert('Link itinerary berhasil disalin!');
-                    }
-                  }}
-                >
-                  📤 Bagikan
-                </button>
-              </div>
             </>
           )}
 
