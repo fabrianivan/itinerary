@@ -140,7 +140,7 @@ flowchart TD
 ## 🔗 8. Project Links & Verification
 - 🚀 **Live Demo URL**: [https://itinerary-ai-568194388115.asia-southeast2.run.app](https://itinerary-ai-568194388115.asia-southeast2.run.app)
 - 🌐 **Mirror URL**: [https://itinerary-ai-ciev6ppbqq-et.a.run.app](https://itinerary-ai-ciev6ppbqq-et.a.run.app)
-- 📦 **Public Repository**: [GitHub Repository](https://github.com/) *(Add your public git repo link)*
+- 📦 **Public Repository**: [https://github.com/fabrianivan/itinerary](https://github.com/fabrianivan/itinerary)
 - 📹 **Demo Video & Blog**: Attached in Kaggle / Labtracer Submission Form
 
 ---
